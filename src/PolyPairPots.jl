@@ -17,4 +17,6 @@ include("basis.jl")
 
 include("calculator.jl")
 
+include("repulsion.jl") 
+
 end # module
