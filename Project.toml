@@ -1,7 +1,7 @@
 name = "PolyPairPots"
 uuid = "500c3504-e044-11e9-3381-317db4d8b740"
 authors = ["Christoph Ortner <c.ortner@warwick.ac.uk>"]
-version = "0.1.0"
+version = "0.1.1"
 
 [deps]
 JuLIP = "945c410c-986d-556a-acb1-167a618e0462"
