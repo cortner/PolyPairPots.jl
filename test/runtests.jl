@@ -21,7 +21,7 @@ X = copy(positions(at))
 
 trans = PolyTransform(2, r0)
 fcut = PolyCutoff1s(2, 0.5*r0, 2.5*r0)
-pB = PolyPairBasis(10, trans, fcut)
+pB = PolyPairBasis(:W, 10, trans, fcut)
 
 ##
 
