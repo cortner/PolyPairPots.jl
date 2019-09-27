@@ -72,7 +72,7 @@ r0 = rnn(:W)
 
 trans = PolyTransform(2, r0)
 fcut = PolyCutoff2s(2, 0.5*r0, 1.95*r0)
-B = PolyPairBasis(10, trans, fcut)
+B = PolyPairBasis(:W, 10, trans, fcut)
 
 ##
 
@@ -109,6 +109,7 @@ println()
 
 @info("      Standard JuLIP Consistency Test")
 variablecell!(at)
+rattle!(at, 0.03)
 JuLIP.Testing.fdtest(pot, at)
 
 ##
@@ -116,32 +117,32 @@ end
 
 
 
-@testset "RepulsiveCore" begin
-
-@info("--------------- Testing RepulsiveCore Implementation ---------------")
-
-
-## try out the repulsive potential
-Vfit = pot
-
-ri = 2.1
-if (@D Vfit(ri)) > 0
-   Vfit = PolyPairPot(Vfit.J, - Vfit.coeffs)
-end
-e0 = Vfit(ri) - 1.0
-Vrep = PolyPairPots.Repulsion.RepulsiveCore(Vfit, ri)
-
-
-rout = range(ri, 4.0, length=100)
-println(@test all(Vfit(r) == Vrep(r) for r in rout))
-rin = range(0.5, ri, length=100)
-println(@test all(Vrep.Vin(r) == Vrep(r) for r in rin))
-
-println(@test JuLIP.Testing.fdtest(Vrep, at))
-
-##
-
-end
+# @testset "RepulsiveCore" begin
+#
+# @info("--------------- Testing RepulsiveCore Implementation ---------------")
+#
+#
+# ## try out the repulsive potential
+# Vfit = pot
+#
+# ri = 2.1
+# if (@D Vfit(ri)) > 0
+#    Vfit = PolyPairPot(Vfit.J, - Vfit.coeffs)
+# end
+# e0 = Vfit(ri) - 1.0
+# Vrep = PolyPairPots.Repulsion.RepulsiveCore(Vfit, ri)
+#
+#
+# rout = range(ri, 4.0, length=100)
+# println(@test all(Vfit(r) == Vrep(r) for r in rout))
+# rin = range(0.5, ri, length=100)
+# println(@test all(Vrep.Vin(r) == Vrep(r) for r in rin))
+#
+# println(@test JuLIP.Testing.fdtest(Vrep, at))
+#
+# ##
+#
+# end
 
 
 end

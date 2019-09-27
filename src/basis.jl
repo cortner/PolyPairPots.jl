@@ -24,7 +24,10 @@ PolyPairBasis(species, maxdeg::Integer,
    PolyPairBasis( TransformedJacobi(maxdeg, trans, fcut),
                   ZList(species; static=true) )
 
-function PolyPairBasis(J::TransformedJacobi, zlist::SZList{NZ}) where {NZ}
+PolyPairBasis(J::TransformedJacobi, zlist::SZList) =
+      PolyPairBasis(J, zlist, get_bidx0(J, zlist))
+
+function get_bidx0(J, zlist::SZList{NZ}) where {NZ}
    NJ = length(J)
    bidx0 = fill(zero(Int16), (NZ, NZ))
    i0 = 0
@@ -33,7 +36,7 @@ function PolyPairBasis(J::TransformedJacobi, zlist::SZList{NZ}) where {NZ}
       bidx0[j,i] = i0
       i0 += NJ
    end
-   return PolyPairBasis(J, zlist, SMatrix{NZ, NZ, Int16}(bidx0...))
+   return SMatrix{NZ, NZ, Int16}(bidx0...)
 end
 
 ==(B1::PolyPairBasis, B2::PolyPairBasis) =
@@ -65,7 +68,7 @@ alloc_temp_d(pB::PolyPairBasis, args...) = ( J = alloc_B( pB.J),
 compute the zeroth index of the basis corresponding to the potential between
 two species zi, zj; as precomputed in `PolyPairBasis.bidx0`
 """
-_Bidx0(pB::PolyPairBasis, zi, zj) = pB.bidx0[ z2i(pB, zi), z2i(pB, zj) ]
+_Bidx0(pB, zi, zj) = pB.bidx0[ z2i(pB, zi), z2i(pB, zj) ]
 
 function energy(pB::PolyPairBasis, at::Atoms{T}) where {T}
    E = zeros(T, length(pB))

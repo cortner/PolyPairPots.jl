@@ -1,23 +1,25 @@
 
 
 import JuLIP
-using JuLIP: JVec, Atoms, PairPotential
-using JuLIP.Potentials: @pot
+using JuLIP: JVec, Atoms
+using JuLIP.Potentials: @pot, MPairPotential, SZList, ZList, z2i, i2z
 using LinearAlgebra: dot
 
 # ----------------------------------------------------
 
 export PolyPairPot
 
-struct PolyPairPot{T,TJ} <: PairPotential
-   J::TJ
+struct PolyPairPot{T,TJ,NZ} <: MPairPotential
    coeffs::Vector{T}
+   J::TJ
+   zlist::SZList{NZ}
+   bidx0::SMatrix{NZ,NZ,Int16}
 end
 
 @pot PolyPairPot
 
 PolyPairPot(pB::PolyPairBasis, coeffs::Vector) =
-            PolyPairPot(pB.J, collect(coeffs))
+            PolyPairPot(coeffs, pB.J, pB.zlist, pB.bidx0)
 
 JuLIP.MLIPs.combine(pB::PolyPairBasis, coeffs::AbstractVector) =
             PolyPairPot(pB, collect(coeffs))
@@ -25,29 +27,45 @@ JuLIP.MLIPs.combine(pB::PolyPairBasis, coeffs::AbstractVector) =
 JuLIP.cutoff(V::PolyPairPot) = cutoff(V.J)
 
 ==(V1::PolyPairPot, V2::PolyPairPot) =
-            ( (V1.J == V2.J) && (V1.coeffs == V2.coeffs) )
+            ( (V1.J == V2.J) && (V1.coeffs == V2.coeffs) &&  V1.zlist == V2.zlist )
 
 Dict(V::PolyPairPot) = Dict(
       "__id__" => "PolyPairPots_PolyPairPot",
+      "coeffs" => V.coeffs,
       "J" => Dict(V.J),
-      "coeffs" => V.coeffs)
+      "zlist" => V.zlist.list
+      )
 
-PolyPairPot(D::Dict) = PolyPairPot(
-      TransformedJacobi(D["J"]),
-      Vector{Float64}(D["coeffs"]))
+function PolyPairPot(D::Dict)
+   J = TransformedJacobi(D["J"])
+   zlist = ZList(D["zlist"], static = true)
+   return PolyPairPot( Vector{Float64}(D["coeffs"]),
+                       J, zlist, get_bidx0(J, zlist) )
+end
 
 convert(::Val{:PolyPairPots_PolyPairPot}, D::Dict) = PolyPairPot(D)
 
 
 alloc_temp(V::PolyPairPot{T}, N::Integer) where {T} =
-      ( J = alloc_B(V.J), R = zeros(JVec{T}, N) )
+      ( J = alloc_B(V.J),
+        R = zeros(JVec{T}, N),
+        Z = zeros(Int16, N) )
 
 alloc_temp_d(V::PolyPairPot{T}, N::Integer) where {T} =
-      ( J = alloc_B(V.J), dJ = alloc_dB(V.J),
-        dV = zeros(JVec{T}, N), R = zeros(JVec{T}, N) )
+      ( J = alloc_B(V.J),
+       dJ = alloc_dB(V.J),
+       dV = zeros(JVec{T}, N),
+        R = zeros(JVec{T}, N),
+        Z = zeros(Int16, N) )
 
-evaluate!(tmp, V::PolyPairPot, r::Number) =
-      2 * dot(V.coeffs, evaluate!(tmp.J, nothing, V.J, r))
 
-evaluate_d!(tmp, V::PolyPairPot, r::Number) =
-      2 * dot(V.coeffs, evaluate_d!(tmp.J, tmp.dJ, nothing, V.J, r))
+function _dot_zij(V, B, z, z0)
+   i0 = _Bidx0(V, z, z0)
+   return sum( V.coeffs[i0 + n] * B[n]  for n = 1:length(V.J) )
+end
+
+evaluate!(tmp, V::PolyPairPot, r::Number, z, z0) =
+      _dot_zij(V, evaluate!(tmp.J, nothing, V.J, r), z, z0)
+
+evaluate_d!(tmp, V::PolyPairPot, r::Number, z, z0) =
+      _dot_zij(V, evaluate_d!(tmp.J, tmp.dJ, nothing, V.J, r), z, z0)
