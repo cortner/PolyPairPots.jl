@@ -5,6 +5,8 @@ using JuLIP: JVec, Atoms
 using JuLIP.Potentials: @pot, MPairPotential, SZList, ZList, z2i, i2z
 using LinearAlgebra: dot
 
+import JuLIP.Potentials: evaluate, evaluate_d
+
 # ----------------------------------------------------
 
 export PolyPairPot
@@ -38,7 +40,7 @@ Dict(V::PolyPairPot) = Dict(
 
 function PolyPairPot(D::Dict)
    J = TransformedJacobi(D["J"])
-   zlist = ZList(D["zlist"], static = true)
+   zlist = ZList(Int16.(D["zlist"]), static = true)
    return PolyPairPot( Vector{Float64}(D["coeffs"]),
                        J, zlist, get_bidx0(J, zlist) )
 end
@@ -69,3 +71,18 @@ evaluate!(tmp, V::PolyPairPot, r::Number, z, z0) =
 
 evaluate_d!(tmp, V::PolyPairPot, r::Number, z, z0) =
       _dot_zij(V, evaluate_d!(tmp.J, tmp.dJ, nothing, V.J, r), z, z0)
+
+function evaluate!(tmp, V::PolyPairPot, r::Number)
+   @assert length(V.zlist) == 1
+   z = V.zlist.list[1]
+   return evaluate!(tmp, V::PolyPairPot, r::Number, z, z)
+end
+
+function evaluate_d!(tmp, V::PolyPairPot, r::Number)
+   @assert length(V.zlist) == 1
+   z = V.zlist.list[1]
+   return evaluate_d!(tmp, V::PolyPairPot, r::Number, z, z)
+end
+
+evaluate(V::PolyPairPot, r::Number) = evaluate!(alloc_temp(V, 1), V, r)
+evaluate_d(V::PolyPairPot, r::Number) = evaluate_d!(alloc_temp_d(V, 1), V, r)

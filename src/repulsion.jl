@@ -32,7 +32,7 @@ evaluate_d!(tmp, V::RepulsiveCore, r::Number) =  (
 
 
 
-function RepulsiveCore(Vout::PairPotential, ri, e0=0.0; verbose=false)
+function RepulsiveCore(Vout, ri, e0=0.0; verbose=false)
    v = Vout(ri)
    dv = @D Vout(ri)
    if dv >= 0.0
