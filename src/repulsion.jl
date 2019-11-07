@@ -43,7 +43,7 @@ function RepulsiveCore(Vout, ri, e0=0.0; verbose=false)
                repulsive core. Proceed at your own risk.""")
    end
    if v-e0 <= 0.0
-      @error("it is required that `Vout(ri) > 0`.")
+      @warn("it is recommended that `Vout(ri) > 0`.")
    end
    if v-e0 <= 1.0
       @warn("""Ideally the repulsive core should not be attached at small

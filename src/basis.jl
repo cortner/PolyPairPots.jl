@@ -78,7 +78,7 @@ function energy(pB::PolyPairBasis, at::Atoms{T}) where {T}
       evaluate!(stor.J, nothing, pB.J, r)
       idx0 = _Bidx0(pB, at.Z[i], at.Z[j])
       for n = 1:length(pB.J)
-         E[idx0 + n] += stor.J[n]
+         E[idx0 + n] += 0.5 * stor.J[n]
       end
    end
    return E
@@ -92,8 +92,8 @@ function forces(pB::PolyPairBasis, at::Atoms{T}) where {T}
       evaluate_d!(stor.J, stor.dJ, nothing, pB.J, r)
       idx0 = _Bidx0(pB, at.Z[i], at.Z[j])
       for n = 1:length(pB.J)
-         F[i, idx0 + n] += stor.dJ[n] * (R/r)
-         F[j, idx0 + n] -= stor.dJ[n] * (R/r)
+         F[i, idx0 + n] += 0.5 * stor.dJ[n] * (R/r)
+         F[j, idx0 + n] -= 0.5 * stor.dJ[n] * (R/r)
       end
    end
    return [ F[:, iB] for iB = 1:length(pB) ]
@@ -107,7 +107,7 @@ function virial(pB::PolyPairBasis, at::Atoms{T}) where {T}
       evaluate_d!(stor.J, stor.dJ, nothing, pB.J, r)
       idx0 = _Bidx0(pB, at.Z[i], at.Z[j])
       for n = 1:length(pB.J)
-         V[idx0 + n] -= (stor.dJ[n]/r) * R * R'
+         V[idx0 + n] -= 0.5 * (stor.dJ[n]/r) * R * R'
       end
    end
    return V
