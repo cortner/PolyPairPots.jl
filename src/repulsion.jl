@@ -2,17 +2,48 @@
 
 module Repulsion
 
+using StaticArrays
+
 import JuLIP: decode_dict
-import JuLIP.Potentials: @pot, evaluate, evaluate_d, PairPotential, @D, cutoff,
+import JuLIP.Potentials: @pot, evaluate, evaluate_d, MPairPotential, @D, cutoff,
                          @analytic, evaluate!, evaluate_d!,
-                         alloc_temp, alloc_temp_d
+                         alloc_temp, alloc_temp_d,
+                         i2z, z2i
 import Base: Dict, convert
 
-struct RepulsiveCore{TV1, TV2} <: PairPotential
-   Vout::TV1         # the outer pair potential
-   Vin::TV2          # the inner (repulsive) pair potential
-   ri::Float64       # the interface between the two
-   e0::Float64
+# ----------------------------------------------------------------------
+# The repulsive core is built from shifted Buckingham potentials
+
+"""
+e0 + B * exp( - A * (r/ri-1) ) * ri/r
+"""
+struct BuckPot{T}
+   e0::T
+   A::T
+   ri::T
+   B::T
+end
+
+@pot BuckPot
+
+evaluate(V::BuckPot, r) = V.e0 + V.B * exp( - V.A * (r/V.ri-1) ) * V.ri/r
+
+evaluate_d(V::BuckPot, r) = V.B * exp( - V.A * (r/V.ri-1) ) * V.ri * (
+                            - V.A / V.ri / r  - 1/r^2  )
+
+Dict(V::BuckPot) = Dict("__id__" => "PolyPairPots_BuckPot",
+                        "e0" => V.e0, "A" => V.A, "ri" => V.ri, "B" => V.B )
+
+BuckPot(D::Dict) = BuckPot(D["e0"], D["A"], D["ri"], D["B"])
+
+convert(::Val{:PolyPairPots_BuckPot}, D::Dict) = BuckPot(D)
+
+# ----------------------------------------------------------------------
+
+
+struct RepulsiveCore{T, TOUT, NZ} <: MPairPotential
+   Vout::TOUT
+   Vin::SMatrix{NZ, NZ, BuckPot{T}}
 end
 
 @pot RepulsiveCore
@@ -22,17 +53,28 @@ cutoff(V::RepulsiveCore) = cutoff(V.Vout)
 alloc_temp(V::RepulsiveCore, N::Integer) = alloc_temp(V.Vout, N)
 alloc_temp_d(V::RepulsiveCore, N::Integer) = alloc_temp_d(V.Vout, N)
 
-evaluate!(tmp, V::RepulsiveCore, r::Number) =  (
-   r > V.ri ? evaluate!(tmp, V.Vout, r)
-            : evaluate!(nothing, V.Vin, r) )
+function evaluate!(tmp, V::RepulsiveCore, r::Number, z, z0)
+   iz, iz0 = z2i(V.Vout, z), z2i(V.Vout, z0)
+   Vin = V.Vin[iz, iz0]
+   if r > Vin.ri
+      return evaluate!(tmp, V.Vout, r, z, z0)
+   else
+      return evaluate(Vin, r)
+   end
+end
 
-evaluate_d!(tmp, V::RepulsiveCore, r::Number) =  (
-   r > V.ri ? evaluate_d!(tmp, V.Vout, r)
-            : evaluate_d!(nothing, V.Vin, r) )
+function evaluate_d!(tmp, V::RepulsiveCore, r::Number, z, z0)
+   iz, iz0 = z2i(V.Vout, z), z2i(V.Vout, z0)
+   Vin = V.Vin[iz, iz0]
+   if r > Vin.ri
+      return evaluate_d!(tmp, V.Vout, r, z, z0)
+   else
+      return evaluate_d(Vin, r)
+   end
+end
 
 
-
-function RepulsiveCore(Vout, ri, e0=0.0; verbose=false)
+function _simple_repulsive_core(Vout, ri, e0, verbose, z, z0)
    v = Vout(ri)
    dv = @D Vout(ri)
    if dv >= 0.0
@@ -56,19 +98,32 @@ function RepulsiveCore(Vout, ri, e0=0.0; verbose=false)
    #    => -(1+A)/ri * (v-e0) = dv
    #    => 1+A = - ri dv / (v-e0)
    #    => A = -1 - ri dv / (v-e0)
-   Vin = let A = -1 - ri * dv / (v-e0), B = v-e0, e0=e0, ri = ri
-      if verbose
-         @show A, B
-      end
-      @analytic r -> e0 + B * exp( - A * (r/ri-1) ) * ri/r
-   end
+   A = -1 - ri * dv / (v-e0)
+   B = v-e0
+   Vin = BuckPot(e0, A, ri, B)
    if verbose
       @show ri
       @show Vout(ri), (@D Vout(ri))
       @show Vin(ri), (@D Vin(ri))
    end
+   return Vin
+end
+
+function RepulsiveCore(Vout, ri::Number, e0=0.0; verbose=false)
+   nz = length(Vout.zlist)
+   Vin = Matrix{Any}(undef, nz, nz)
+   for i0 = 1:nz, i1 = 1:i0
+      z0, z1 = i2z(Vout, i0), i2z(Vout, i1)
+      Vin[i0, i1] = Vin[i1, i0] =
+            _simple_repulsive_core(Vout, ri, e0, verbose, z1, z0)
+   end
    # construct the piecewise potential
-   return RepulsiveCore(Vout, Vin, ri, e0)
+   return RepulsiveCore(Vout, Vin)
+end
+
+function RepulsiveCore(Vout, Vin::AbstractArray)
+   nz = length(Vout.zlist)
+   return RepulsiveCore(Vout, SMatrix{nz, nz}(Vin...))
 end
 
 # ----------------------------------------------------
@@ -77,15 +132,13 @@ end
 
 Dict(V::RepulsiveCore) = Dict("__id__" => "PolyPairPots_RepulsiveCore",
                               "Vout" => Dict(V.Vout),
-                              "e0" => V.e0,
-                              "ri" => V.ri)
+                              "Vin" => Dict.(V.Vin[:]) )
 
 function RepulsiveCore(D::Dict)
-   if haskey(D, "e0")
-      return RepulsiveCore(decode_dict(D["Vout"]), D["ri"], D["e0"])
-   else
-      return RepulsiveCore(decode_dict(D["Vout"]), D["ri"])
-   end
+   Vout = decode_dict(D["Vout"])
+   nz = length(Vout.zlist)
+   Vin = BuckPot.(D["Vin"])
+   return RepulsiveCore(Vout, reshape(Vin, (nz, nz)))
 end
 
 convert(::Val{:PolyPairPots_RepulsiveCore}, D::Dict) = RepulsiveCore(D)
