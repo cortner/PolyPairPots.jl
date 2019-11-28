@@ -75,10 +75,10 @@ end
 
 
 function _simple_repulsive_core(Vout, ri, e0, verbose, z, z0)
-   v = Vout(ri)
-   dv = @D Vout(ri)
+   v = Vout(ri, z, z0)
+   dv = @D Vout(ri, z, z0)
    if dv >= 0.0
-      @error("The slope `Vout'(ri)` is required to be negative")
+      @warn("The slope `Vout'(ri)` should be negative")
    end
    if dv > -1.0
       @warn("""The slope `Vout'(ri) = $dv` may not be steep enough to attach a

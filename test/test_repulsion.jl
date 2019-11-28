@@ -59,19 +59,18 @@ Vfit = pot
 ri = 2.1
 z1 = 26
 z2 = 74
-@show @D Vfit(ri, 26, 74)
-if (@D Vfit(ri)) > 0
-   Vfit = PolyPairPot(- Vfit.coeffs, Vfit.J, Vfit.zlist, Vfit.bidx0)
+@show @D Vfit(ri, z1, z2)
+e0 = min(Vfit(ri, z1, z2), Vfit(ri, z1, z1), Vfit(ri, z2, z2)) - 1.0
+Vrep = PolyPairPots.Repulsion.RepulsiveCore(Vfit, ri, e0)
+
+for (z, z0) in zip([z1, z1, z2], [z1, z2, z2])
+   i, i0 = JuLIP.Potentials.z2i(Vfit, z), JuLIP.Potentials.z2i(Vfit, z0)
+   rout = range(ri+1e-15, 4.0, length=100)
+   println(@test all(Vfit(r, z, z0) == Vrep(r, z, z0) for r in rout))
+   rin = range(0.5, ri, length=100)
+   println(@test all(Vrep.Vin[i,i0](r) == Vrep(r, z, z0) for r in rin))
 end
-@show @D Vfit(ri)
-e0 = Vfit(ri) - 1.0
-Vrep = PolyPairPots.Repulsion.RepulsiveCore(Vfit, ri)
 
-
-rout = range(ri, 4.0, length=100)
-println(@test all(Vfit(r) == Vrep(r) for r in rout))
-rin = range(0.5, ri, length=100)
-println(@test all(Vrep.Vin(r) == Vrep(r) for r in rin))
 
 @info("JuLIP FD test")
 println(@test JuLIP.Testing.fdtest(Vrep, at))
