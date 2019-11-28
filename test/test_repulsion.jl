@@ -2,6 +2,7 @@
 
 @testset "RepulsiveCore" begin
 
+##
 @info("--------------- Testing RepulsiveCore Implementation ---------------")
 
 at = bulk(:W, cubic=true) * 3
@@ -27,7 +28,7 @@ e0 = Vfit(ri) - 1.0
 Vrep = PolyPairPots.Repulsion.RepulsiveCore(Vfit, ri)
 
 
-rout = range(ri, 4.0, length=100)
+rout = range(ri+1e-15, 4.0, length=100)
 println(@test all(Vfit(r) == Vrep(r,z,z) for r in rout))
 rin = range(0.5, ri, length=100)
 println(@test all(Vrep.Vin[1](r) == Vrep(r,z,z) for r in rin))
@@ -78,7 +79,16 @@ println(@test JuLIP.Testing.fdtest(Vrep, at))
 @info("check scaling")
 println(@test energy(Vfit, at) ≈ energy(Vrep, at))
 
-##
 
+
+@info("check FIO")
+println(@test (Vrep == decode_dict(Dict(Vrep))))
+fname = tempname()
+save_json(fname, Dict(Vrep))
+D1 = load_json(fname)
+rm(fname)
+println(@test (Vrep == decode_dict(D1)))
+
+##
 
 end

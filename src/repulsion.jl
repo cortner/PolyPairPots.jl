@@ -9,7 +9,7 @@ import JuLIP.Potentials: @pot, evaluate, evaluate_d, MPairPotential, @D, cutoff,
                          @analytic, evaluate!, evaluate_d!,
                          alloc_temp, alloc_temp_d,
                          i2z, z2i
-import Base: Dict, convert
+import Base: Dict, convert, ==
 
 # ----------------------------------------------------------------------
 # The repulsive core is built from shifted Buckingham potentials
@@ -38,6 +38,9 @@ BuckPot(D::Dict) = BuckPot(D["e0"], D["A"], D["ri"], D["B"])
 
 convert(::Val{:PolyPairPots_BuckPot}, D::Dict) = BuckPot(D)
 
+==(V1::BuckPot, V2::BuckPot) =
+   all(getfield(V1, x) == getfield(V2, x) for x in fieldnames(BuckPot))
+
 # ----------------------------------------------------------------------
 
 
@@ -45,6 +48,10 @@ struct RepulsiveCore{T, TOUT, NZ} <: MPairPotential
    Vout::TOUT
    Vin::SMatrix{NZ, NZ, BuckPot{T}}
 end
+
+==(V1::RepulsiveCore, V2::RepulsiveCore) =
+   (V1.Vout == V2.Vout) && (V1.Vin == V2.Vin)
+
 
 @pot RepulsiveCore
 
